@@ -5,10 +5,12 @@
 //creation.
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <array>
 #include <optional>
 #include <set>
 #include <algorithm>
@@ -22,6 +24,55 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
+struct Vertex
+{
+    glm::vec2 pos;
+    glm::vec3 color;
+
+    //Used to tell vulkan how to pass data to the shader, number
+    //of bytes between data
+    static VkVertexInputBindingDescription getBindingDescription() 
+    {
+        VkVertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+
+    //Used to tell Vulkan how atrributes are to be extracted from 
+    //binding descript data
+    static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() 
+    {
+        std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        
+        //For position vertices
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        //Relates to the shader data info, vec2 for pos
+        attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+        attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+        //For color vertices, vec3 for colors
+        attributeDescriptions[1].binding = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset = offsetof(Vertex, color);
+        return attributeDescriptions;
+    }
+};
+
+//Used as input for shader, includes
+//vertices and colors (interleaving)
+const std::vector<Vertex> vertices = 
+{
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+};
+
+//Validation layers depending on if compiled with 
+//debugging
 const std::vector<const char*> validationLayers = 
 {
     "VK_LAYER_KHRONOS_validation"
@@ -32,8 +83,6 @@ const std::vector<const char*> deviceExtensions =
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
-//Validation layers depending on if compiled with 
-//debugging
 #ifdef NDEBUG
 const bool enableValidationLayers = false;
 #else
@@ -463,13 +512,17 @@ private:
         //Array holding the shader stages for the pipeline
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
+        //Referencing binding and attribute descripts
+        auto bindingDescription = Vertex::getBindingDescription();
+        auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
         //This struct will be used to hold the vertex input info
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
-        vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
         //Types of geometry 
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -605,6 +658,7 @@ private:
         {
             throw std::runtime_error("failed to create graphics pipeline!");
         }
+
 
         //Destroying the shader module objects
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
